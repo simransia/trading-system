@@ -78,12 +78,14 @@ const ActiveOrdersTable = ({
                 </TableCell>
                 <TableCell>
                   <div className="flex gap-2">
-                    <button
-                      onClick={() => onAcceptOrder(order._id)}
-                      className="px-2 py-1 bg-green-500 rounded hover:bg-green-600"
-                    >
-                      Accept
-                    </button>
+                    {order.status === "New Order" && (
+                      <button
+                        onClick={() => onAcceptOrder(order._id)}
+                        className="px-2 py-1 bg-green-500 rounded hover:bg-green-600"
+                      >
+                        Accept
+                      </button>
+                    )}
                     <button
                       onClick={() => onRejectOrder(order._id)}
                       className="px-2 py-1 bg-red-500 rounded hover:bg-red-600"
