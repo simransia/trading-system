@@ -34,6 +34,12 @@ app.use(express.json());
 app.use(authRouter);
 app.use(adminRouter);
 
+// Start simulations once
+startPriceSimulation(wss);
+startOrderSimulation();
+
+connectToMongo();
+
 interface Connection {
   socket: WebSocket;
   role: "client" | "manager";
@@ -73,15 +79,6 @@ server.on("upgrade", (request, socket, head) => {
   }
 });
 
-// Start simulations once
-startPriceSimulation(wss);
-startOrderSimulation();
-
-// Start server
-const PORT = process.env.PORT || 8080;
-connectToMongo().then(() => {
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`WebSocket server ready`);
-  });
+server.listen(process.env.PORT || 3000, () => {
+  console.log(`Server is running on port ${process.env.PORT || 3000}`);
 });

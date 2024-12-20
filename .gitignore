@@ -5,6 +5,7 @@
 /dist
 /build
 /server/node_modules
+/server/.env
 /.pnp
 .pnp.*
 .yarn/*

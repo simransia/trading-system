@@ -12,7 +12,7 @@ import {
 import { signup } from "@/api/signup";
 import { toast } from "react-toastify";
 
-const Login = () => {
+const Signup = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -37,10 +37,15 @@ const Login = () => {
     }
 
     try {
-      const { token, role: userRole } = await signup(username, password, role);
+      const {
+        token,
+        role: userRole,
+        userId,
+      } = await signup(username, password, role);
 
       localStorage.setItem("token", token);
       localStorage.setItem("role", userRole);
+      localStorage.setItem("userId", userId);
       document.cookie = `token=${token}; path=/; max-age=86400`;
 
       toast.success("Account created successfully!");
@@ -105,7 +110,7 @@ const Login = () => {
 
       <button
         onClick={handleSignup}
-        className="bg-gradient-to-r from-[#FCD535] hover:from-[#d89236]/90 hover:to-[#FCD535]/90 via-[#FCD535] to-[#d89236] shadow-md rounded-lg w-full text-black font-bold px-4 py-2 mt-6"
+        className="bg-gradient-to-r cursor-pointer from-[#FCD535] hover:from-[#d89236]/90 hover:to-[#FCD535]/90 via-[#FCD535] to-[#d89236] shadow-md rounded-lg w-full text-black font-bold px-4 py-2 mt-6"
       >
         Continue
       </button>
@@ -120,4 +125,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default Signup;

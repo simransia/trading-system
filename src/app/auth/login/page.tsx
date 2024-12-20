@@ -11,6 +11,8 @@ const Login = () => {
   const [error, setError] = useState("");
   const router = useRouter();
 
+  console.log(localStorage.getItem("userId"));
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -56,7 +58,7 @@ const Login = () => {
       {error && <p className="text-red-500 mt-2">{error}</p>}
       <button
         onClick={handleLogin}
-        className="bg-gradient-to-r from-[#FCD535] hover:from-[#d89236]/90 hover:to-[#FCD535]/90 via-[#FCD535] to-[#d89236] shadow-md rounded-lg w-full text-black font-bold px-4 py-2 my-2"
+        className="bg-gradient-to-r cursor-pointer from-[#FCD535] hover:from-[#d89236]/90 hover:to-[#FCD535]/90 via-[#FCD535] to-[#d89236] shadow-md rounded-lg w-full text-black font-bold px-4 py-2 my-2"
       >
         Continue
       </button>

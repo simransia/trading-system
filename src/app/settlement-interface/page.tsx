@@ -60,7 +60,7 @@ const SettlementInterface = () => {
           </div>
         </header>
 
-        <div className="grid grid-cols-1 xl:grid-cols-2 items-start gap-6">
+        <div className="grid grid-cols-1 3xl:grid-cols-2 items-start gap-6">
           {/* Active Orders */}
 
           <div className="bg-[#1E2329] rounded-lg p-6">
@@ -86,7 +86,7 @@ const SettlementInterface = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1  xl:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1  3xl:grid-cols-2 gap-6">
           {/* Match Opportunities */}
           <div className="bg-[#1E2329] rounded-lg p-6">
             <h2 className="text-xl font-semibold text-gray-200 mb-6">
