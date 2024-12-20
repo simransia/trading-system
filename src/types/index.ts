@@ -10,6 +10,7 @@ export interface Order {
   status: OrderStatus;
   expiration: Date | string;
   expired: boolean;
+  matchId?: string;
 }
 
 export interface OrderModification {

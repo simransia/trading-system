@@ -15,10 +15,15 @@ const Chart = dynamic(() => import("@/components/Chart"), { ssr: false });
 
 const SettlementInterface = () => {
   const router = useRouter();
+
   const {
     activeOrders,
     orderHistory,
     matchOpportunities,
+    setMatchOpportunities,
+  } = useWebSocketConnection();
+
+  const {
     selectedOrder,
     isModifying,
     modificationData,
@@ -29,16 +34,7 @@ const SettlementInterface = () => {
     handleRejectOrder,
     handleMatchOrders,
     handleModifyOrder,
-    findMatchOpportunities,
-    setActiveOrders,
-    setOrderHistory,
-  } = useOrderManagement();
-
-  useWebSocketConnection(
-    setActiveOrders,
-    setOrderHistory,
-    findMatchOpportunities
-  );
+  } = useOrderManagement({ setMatchOpportunities });
 
   // Authentication check
   useEffect(() => {
@@ -54,7 +50,16 @@ const SettlementInterface = () => {
         <header className="flex justify-between items-center mb-8">
           <h1 className="text-2xl font-bold">Settlement Dashboard</h1>
           <div className="flex items-center space-x-4">
-            <Badge variant="outline" className="text-blue-400 border-blue-400">
+            <Badge
+              onClick={() => {
+                localStorage.removeItem("token");
+                localStorage.removeItem("role");
+                localStorage.removeItem("userId");
+                router.push("/auth/login");
+              }}
+              variant="outline"
+              className="text-blue-400 border-blue-400"
+            >
               Manager View
             </Badge>
           </div>

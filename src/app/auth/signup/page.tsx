@@ -46,7 +46,6 @@ const Signup = () => {
       localStorage.setItem("token", token);
       localStorage.setItem("role", userRole);
       localStorage.setItem("userId", userId);
-      document.cookie = `token=${token}; path=/; max-age=86400`;
 
       toast.success("Account created successfully!");
 

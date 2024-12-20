@@ -10,39 +10,27 @@ import { Badge } from "@/components/ui/badge";
 import { Order } from "@/types";
 import SimpleBar from "simplebar-react";
 
-interface OrderHistoryTableProps {
-  orders: Order[];
-}
-
-const TABLE_HEADERS = [
-  "Time",
-  "Type",
-  "Asset",
-  "Price",
-  "Quantity",
-  "Status",
-] as const;
-
-const OrderHistoryTable = ({ orders }: OrderHistoryTableProps) => {
+const OrderHistoryTable = ({ orders }: { orders: Order[] }) => {
   return (
-    <div className="h-[50vh] xl:h-[70vh]">
+    <div className="h-[50vh]">
       <SimpleBar className="h-full">
         <Table>
           <TableHeader className="sticky top-0 bg-[#1E2329] z-10">
             <TableRow className="border-gray-700">
-              {TABLE_HEADERS.map((header) => (
-                <TableHead key={header} className="text-gray-400">
-                  {header}
-                </TableHead>
-              ))}
+              <TableHead className="text-gray-400">ID</TableHead>
+              <TableHead className="text-gray-400">Asset</TableHead>
+              <TableHead className="text-gray-400">Type</TableHead>
+              <TableHead className="text-gray-400">Quantity</TableHead>
+              <TableHead className="text-gray-400">Price</TableHead>
+              <TableHead className="text-gray-400">Status</TableHead>
+              <TableHead className="text-gray-400">Match ID</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {orders.map((order) => (
               <TableRow key={order._id} className="border-gray-700">
-                <TableCell>
-                  {new Date(order.expiration).toLocaleString()}
-                </TableCell>
+                <TableCell>{order._id}</TableCell>
+                <TableCell>{order.asset}</TableCell>
                 <TableCell>
                   <Badge
                     variant={order.type === "BUY" ? "success" : "destructive"}
@@ -50,29 +38,12 @@ const OrderHistoryTable = ({ orders }: OrderHistoryTableProps) => {
                     {order.type}
                   </Badge>
                 </TableCell>
-                <TableCell>
-                  <Badge
-                    variant="outline"
-                    className="bg-[#2A2E39] text-blue-400 border-blue-400"
-                  >
-                    {order.asset}
-                  </Badge>
-                </TableCell>
-                <TableCell>${order.price}</TableCell>
                 <TableCell>{order.quantity}</TableCell>
+                <TableCell>${order.price}</TableCell>
                 <TableCell>
-                  <Badge
-                    variant={
-                      order.status === "FILLED"
-                        ? "success"
-                        : order.status === "REJECTED"
-                        ? "destructive"
-                        : "secondary"
-                    }
-                  >
-                    {order.status}
-                  </Badge>
+                  <Badge>{order.status}</Badge>
                 </TableCell>
+                <TableCell>{order.matchId || "-"}</TableCell>
               </TableRow>
             ))}
           </TableBody>

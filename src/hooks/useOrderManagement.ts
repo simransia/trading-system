@@ -1,20 +1,16 @@
-import { useState, useEffect } from "react";
-import { Order, MatchOpportunity, OrderModification } from "@/types";
+import { useState } from "react";
+import { MatchOpportunity, Order, OrderModification } from "@/types";
 import { acceptOrder } from "@/api/acceptOrder";
 import { rejectOrder } from "@/api/rejectOrder";
 import { matchOrders } from "@/api/matchOrders";
 import { fetchMatchOpportunities } from "@/api/matchOpportunities";
 import { modifyOrder } from "@/api/modifyOrders";
 
-const MAX_ACTIVE_ORDERS = 100;
-const MAX_ORDER_HISTORY = 50;
-
-export const useOrderManagement = () => {
-  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
-  const [orderHistory, setOrderHistory] = useState<Order[]>([]);
-  const [matchOpportunities, setMatchOpportunities] = useState<
-    MatchOpportunity[]
-  >([]);
+export const useOrderManagement = ({
+  setMatchOpportunities,
+}: {
+  setMatchOpportunities: (opportunities: MatchOpportunity[]) => void;
+}) => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [isModifying, setIsModifying] = useState(false);
   const [modificationData, setModificationData] = useState<OrderModification>({
@@ -67,47 +63,18 @@ export const useOrderManagement = () => {
   const findMatchOpportunities = async () => {
     try {
       const opportunities = await fetchMatchOpportunities();
-      setMatchOpportunities(opportunities);
+      if (opportunities) {
+        setMatchOpportunities(opportunities);
+      }
     } catch (error) {
       console.error("Failed to fetch match opportunities:", error);
     }
   };
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      setActiveOrders([]);
-      setOrderHistory([]);
-      setMatchOpportunities([]);
-    };
-  }, []);
-
-  // Periodic cleanup
-  useEffect(() => {
-    const cleanupInterval = setInterval(() => {
-      setActiveOrders((prev) => {
-        const now = new Date();
-        return prev
-          .filter((order) => new Date(order.expiration) > now)
-          .slice(-MAX_ACTIVE_ORDERS);
-      });
-
-      setOrderHistory((prev) => prev.slice(-MAX_ORDER_HISTORY));
-      setMatchOpportunities((prev) => prev.slice(-20));
-    }, 60000);
-
-    return () => clearInterval(cleanupInterval);
-  }, []);
-
   return {
-    activeOrders,
-    orderHistory,
-    matchOpportunities,
     selectedOrder,
     isModifying,
     modificationData,
-    setActiveOrders,
-    setOrderHistory,
     setSelectedOrder,
     setIsModifying,
     setModificationData,

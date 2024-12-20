@@ -33,7 +33,7 @@ const ClientInterface = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
     localStorage.removeItem("userId");
-    window.location.href = "/auth/login";
+    router.push("/auth/login");
   };
 
   return (
