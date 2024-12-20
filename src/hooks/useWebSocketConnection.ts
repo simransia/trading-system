@@ -65,32 +65,23 @@ export const useWebSocketConnection = () => {
       if (data.type === "ORDER_UPDATE") {
         const allOrders = data.orders || [];
 
-        // Active orders: only NEW orders that aren't expired
+        // Active orders: ONLY New Orders that aren't expired
         const active = allOrders.filter(
           (order: Order) => order.status === "New Order" && !order.expired
         );
 
-        // Match opportunities: only ACCEPTED orders that aren't expired
+        // Match opportunities: only ACCEPTED orders
         const acceptedOrders = allOrders.filter(
           (order: Order) => order.status === "ACCEPTED" && !order.expired
         );
 
-        // History: only FILLED or expired orders (not ACCEPTED or REJECTED)
+        // History: only FILLED or expired orders
         const history = allOrders.filter(
           (order: Order) => order.status === "FILLED" || order.expired
         );
 
-        // Debug logs
-        console.log({
-          allOrders: allOrders.length,
-          active: active.length,
-          accepted: acceptedOrders.length,
-          history: history.length,
-          acceptedStatuses: allOrders.map((o: Order) => o.status),
-        });
-
         // Update states
-        setActiveOrders(active);
+        setActiveOrders(active); // Only New Orders will show here
         setOrderHistory(history);
 
         // Generate match opportunities from accepted orders
