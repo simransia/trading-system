@@ -58,7 +58,7 @@ const SettlementInterface = () => {
                 router.push("/auth/login");
               }}
               variant="outline"
-              className="text-blue-400 border-blue-400"
+              className="text-blue-400 cursor-pointer border-blue-400"
             >
               Logout Manager View
             </Badge>
