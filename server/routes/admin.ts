@@ -1,31 +1,32 @@
 import { Router, Request, Response } from "express";
 import Order from "../models/Order";
 import { broadcastTrade, broadcastOrderUpdate } from "../websocket";
-import mongoose from "mongoose";
+// import mongoose from "mongoose";
 
 const router = Router();
 
 // Add type definitions
-type DurationUnit = "seconds" | "minutes" | "hours" | "days" | "weeks";
+// type DurationUnit = "seconds" | "minutes" | "hours" | "days" | "weeks";
 
-// Add parseDuration helper
-function parseDuration(duration: string): number {
-  const durationMap: Record<DurationUnit, number> = {
-    seconds: 1000,
-    minutes: 60 * 1000,
-    hours: 60 * 60 * 1000,
-    days: 24 * 60 * 60 * 1000,
-    weeks: 7 * 24 * 60 * 60 * 1000,
-  };
+// // Add parseDuration helper
+// function parseDuration(duration: string): number {
+//   const durationMap: Record<DurationUnit, number> = {
+//     seconds: 1000,
+//     minutes: 60 * 1000,
+//     hours: 60 * 60 * 1000,
+//     days: 24 * 60 * 60 * 1000,
+//     weeks: 7 * 24 * 60 * 60 * 1000,
+//   };
 
-  const [value, unit] = duration.split(" ");
-  return parseInt(value) * (durationMap[unit as DurationUnit] || 0);
-}
+//   const [value, unit] = duration.split(" ");
+//   return parseInt(value) * (durationMap[unit as DurationUnit] || 0);
+// }
 
 // Accept an order
 router.post("/api/accept-order", async (req: Request, res: Response) => {
   try {
     const { orderId } = req.body;
+    console.log("Accepting order:", orderId);
     const order = await Order.findByIdAndUpdate(
       orderId,
       { status: "ACCEPTED" },
@@ -37,7 +38,7 @@ router.post("/api/accept-order", async (req: Request, res: Response) => {
       return;
     }
 
-    // Broadcast order update
+    // Get updated orders and broadcast
     const [activeOrders, orderHistory] = await Promise.all([
       Order.find({ status: "New Order" }),
       Order.find({ status: { $ne: "New Order" } })
@@ -52,7 +53,7 @@ router.post("/api/accept-order", async (req: Request, res: Response) => {
     });
 
     res.json({ message: "Order accepted", order });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("Failed to accept order:", error);
     res.status(500).json({ error: "Failed to accept order" });
   }
@@ -188,48 +189,29 @@ router.post("/api/modify-order", async (req, res) => {
 // Place new order
 router.post("/api/orders", async (req: Request, res: Response) => {
   try {
-    const {
-      asset,
-      quantity,
-      price,
-      expiration,
-      type,
-      userId,
-      durationType,
-      durationValue,
-    } = req.body;
-
-    let expirationDate: Date;
-    if (durationType === "duration" && durationValue) {
-      expirationDate = new Date(Date.now() + parseDuration(durationValue));
-    } else if (expiration) {
-      expirationDate = new Date(expiration);
-    } else {
-      res.status(400).json({ error: "Invalid expiration parameters" });
-      return;
-    }
+    const { userId, ...orderData } = req.body;
+    console.log("Creating order with userId:", userId);
 
     const order = new Order({
-      asset,
-      quantity: Number(quantity),
-      price: Number(price),
-      expiration: expirationDate,
-      type,
-      userId: new mongoose.Types.ObjectId(userId),
+      ...orderData,
+      userId,
       status: "New Order",
       expired: false,
       createdAt: new Date(),
     });
 
     await order.save();
+    console.log("Created order:", order);
 
-    // Broadcast update to all clients
+    // Get updated orders and broadcast
     const [activeOrders, orderHistory] = await Promise.all([
       Order.find({ status: "New Order" }),
       Order.find({ status: { $ne: "New Order" } })
         .sort({ updatedAt: -1 })
         .limit(50),
     ]);
+
+    console.log("Broadcasting orders:", activeOrders);
 
     broadcastOrderUpdate({
       type: "ORDER_UPDATE",
@@ -241,9 +223,78 @@ router.post("/api/orders", async (req: Request, res: Response) => {
       message: "Order created successfully",
       order,
     });
-  } catch (error: unknown) {
+  } catch (error) {
     console.error("Failed to create order:", error);
     res.status(500).json({ error: "Failed to create order" });
+  }
+});
+
+// Simplify to just return orders
+router.get("/api/match-opportunities", async (req, res) => {
+  try {
+    // Add status filter to get only active orders
+    const orders = await Order.find({ expired: false });
+
+    const buyOrders = orders.filter(
+      (o) => o.type === "BUY" && o.status === "ACCEPTED"
+    );
+    const sellOrders = orders.filter(
+      (o) => o.type === "SELL" && o.status === "ACCEPTED"
+    );
+
+    const opportunities = buyOrders
+      .flatMap((buyOrder) =>
+        sellOrders
+          .filter(
+            (sellOrder) =>
+              buyOrder.price >= sellOrder.price &&
+              buyOrder.asset === sellOrder.asset
+          )
+          .map((sellOrder) => ({
+            buyOrder,
+            sellOrder,
+            potentialProfit:
+              (buyOrder.price - sellOrder.price) *
+              Math.min(buyOrder.quantity, sellOrder.quantity),
+          }))
+      )
+      .sort((a, b) => b.potentialProfit - a.potentialProfit);
+
+    console.log("Found opportunities:", opportunities);
+    res.json(opportunities);
+  } catch (error) {
+    console.error("Error fetching match opportunities:", error);
+    res.status(500).json({ error: "Failed to fetch match opportunities" });
+  }
+});
+
+// Add a new endpoint for order history
+router.get("/api/order-history", async (req, res) => {
+  try {
+    const orderHistory = await Order.find({ status: { $ne: "New Order" } })
+      .sort({ updatedAt: -1 })
+      .limit(50);
+
+    console.log("Found order history:", orderHistory);
+    res.json(orderHistory);
+  } catch (error) {
+    console.error("Error fetching order history:", error);
+    res.status(500).json({ error: "Failed to fetch order history" });
+  }
+});
+
+// Add this temporary endpoint to check data
+router.get("/api/debug/orders", async (req, res) => {
+  try {
+    const allOrders = await Order.find({});
+    console.log("All orders in DB:", allOrders);
+    res.json({
+      total: allOrders.length,
+      orders: allOrders,
+    });
+  } catch (error) {
+    console.error("Error fetching all orders:", error);
+    res.status(500).json({ error: "Failed to fetch orders" });
   }
 });
 

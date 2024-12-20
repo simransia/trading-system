@@ -2,50 +2,70 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { signup } from "@/api/signup";
+import { toast } from "react-toastify";
 
 const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState("admin");
   const [error, setError] = useState("");
   const router = useRouter();
 
   const handleSignup = async () => {
-    try {
-      const response = await fetch("http://localhost:8080/api/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password, role }), // Include role if needed
-      });
+    // Password validation
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
 
-      if (response.ok) {
-        const { role } = await response.json();
-        if (role == "admin") {
-          localStorage.setItem("role", role);
-          router.push("/settlementInterface");
-        } else {
-          router.push("/");
-        }
+    const passwordRegex =
+      /^(?=.*[A-Za-z])(?=.*\d)(?=.*[@$!%*#?&])[A-Za-z\d@$!%*#?&]{6,}$/;
+    if (!passwordRegex.test(password)) {
+      setError(
+        "Password must be at least 6 characters long and contain at least one letter, one number, and one special character"
+      );
+      return;
+    }
+
+    try {
+      const { token, role: userRole } = await signup(username, password, role);
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("role", userRole);
+      document.cookie = `token=${token}; path=/; max-age=86400`;
+
+      toast.success("Account created successfully!");
+
+      if (userRole === "admin") {
+        router.push("/settlement-interface");
       } else {
-        const { error } = await response.json();
-        setError(error); // Set error message from response
+        router.push("/client-interface");
       }
     } catch (error) {
-      setError("Signup failed. Try again later.");
-      console.log(error);
+      toast.error(error instanceof Error ? error.message : "Signup failed");
+      setError(error instanceof Error ? error.message : "Signup failed");
     }
   };
 
   return (
     <div className="flex flex-col items-center justify-center">
       <h1 className="text-2xl font-bold mb-6 text-white">Sign up</h1>
-      <div className="text-white w-full">
+      <div className="text-white w-full space-y-6">
         <input
           type="text"
           placeholder="Username"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          className="border p-2 px-3 w-full mb-6 bg-transparent border-gray-500 rounded-lg"
+          className="border p-2 px-3 w-full bg-transparent border-gray-500 rounded-lg"
         />
 
         <input
@@ -53,22 +73,45 @@ const Login = () => {
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="border p-2 px-3 w-full mb-6 bg-transparent border-gray-500 rounded-lg"
+          className="border p-2 px-3 w-full bg-transparent border-gray-500 rounded-lg"
         />
-        <select value={role} onChange={(e) => setRole(e.target.value)}>
-          <option value="admin">Admin</option>
-          <option value="User">User</option>
-        </select>
+
+        <input
+          type="password"
+          placeholder="Confirm Password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          className="border p-2 px-3 w-full bg-transparent border-gray-500 rounded-lg"
+        />
+
+        <Select value={role} onValueChange={setRole}>
+          <SelectTrigger className="w-full bg-transparent border-gray-500">
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent className="bg-[#1E2329] border-gray-700">
+            <SelectItem value="admin" className="text-gray-200">
+              Admin
+            </SelectItem>
+            <SelectItem value="user" className="text-gray-200">
+              User
+            </SelectItem>
+          </SelectContent>
+        </Select>
       </div>
-      {error && <p className="text-red-500 mt-2">{error}</p>}
+
+      {error && (
+        <p className="text-red-500 mt-4 text-sm font-medium">{error}</p>
+      )}
+
       <button
         onClick={handleSignup}
-        className="bg-gradient-to-r from-[#FCD535] hover:from-[#d89236]/90 hover:to-[#FCD535]/90 via-[#FCD535] to-[#d89236] shadow-md rounded-lg w-full text-black font-bold px-4 py-2 my-2"
+        className="bg-gradient-to-r from-[#FCD535] hover:from-[#d89236]/90 hover:to-[#FCD535]/90 via-[#FCD535] to-[#d89236] shadow-md rounded-lg w-full text-black font-bold px-4 py-2 mt-6"
       >
         Continue
       </button>
+
       <p className="text-white text-sm mt-4">
-        Already have an account ?{" "}
+        Already have an account?{" "}
         <Link href={"/auth/login"} className="hover:underline font-semibold">
           Log in
         </Link>

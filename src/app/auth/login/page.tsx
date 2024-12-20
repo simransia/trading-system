@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { login } from "@/api/login";
+import { toast } from "react-toastify";
 
 const Login = () => {
   const [username, setUsername] = useState("");
@@ -9,24 +11,25 @@ const Login = () => {
   const [error, setError] = useState("");
   const router = useRouter();
 
-  const handleLogin = async () => {
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      const response = await fetch("http://localhost:8080/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
+      const { token, role, userId } = await login(username, password);
 
-      if (response.ok) {
-        const { role } = await response.json();
-        localStorage.setItem("role", role);
-        await router.push(role === "client" ? "/client" : "/manager");
+      localStorage.setItem("token", token);
+      localStorage.setItem("role", role);
+      localStorage.setItem("userId", userId);
+
+      toast.success("Login successful");
+
+      if (role === "admin") {
+        router.push("/settlement-interface");
       } else {
-        setError("Invalid username or password");
+        router.push("/client-interface");
       }
-    } catch (error) {
-      setError("Login failed. Try again later.");
-      console.log(error);
+    } catch {
+      toast.error("Failed to connect to server");
+      setError("Failed to connect to server");
     }
   };
 

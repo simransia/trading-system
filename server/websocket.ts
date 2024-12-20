@@ -1,9 +1,10 @@
 // server/websocket.ts
 
-import { WebSocket } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
+import { RawData } from "ws";
 import Order, { IOrder } from "./models/Order";
 import mongoose from "mongoose";
-import { wss, userConnections } from "./index";
+import { userConnections, wss } from "./index";
 
 interface BroadcastData {
   type: "ORDER_UPDATE" | "TRADE" | "INITIAL_DATA";
@@ -48,67 +49,91 @@ const notifyManagers = (data: NotificationData) => {
   });
 };
 
-const handleConnection = (ws: WebSocket) => {
-  // Handle client messages
-  ws.on("message", (message: string) => {
-    try {
-      const data = JSON.parse(message);
+interface WebSocketClient extends WebSocket {
+  isAlive: boolean;
+  userId?: string;
+  role?: string;
+}
 
-      if (data.type === "IDENTIFY") {
-        userConnections.set(data.userId, {
-          socket: ws,
-          role: data.role,
-        });
+export const handleConnection = (wss: WebSocketServer) => {
+  // Ping all clients every 30 seconds
+  const interval = setInterval(() => {
+    wss.clients.forEach((client: WebSocket) => {
+      const wsClient = client as WebSocketClient;
+      if (!wsClient.isAlive) {
+        console.log("Client disconnected (ping timeout)");
+        return wsClient.terminate();
       }
-    } catch (error) {
-      console.error("Error handling message:", error);
-    }
+      wsClient.isAlive = false;
+      wsClient.ping();
+    });
+  }, 30000);
+
+  wss.on("connection", (ws: WebSocketClient) => {
+    console.log("New client connected");
+    ws.isAlive = true;
+
+    ws.on("pong", () => {
+      ws.isAlive = true;
+    });
+
+    ws.on("message", (message: RawData) => {
+      try {
+        const data = JSON.parse(message.toString());
+        if (data.type === "IDENTIFY") {
+          ws.userId = data.userId;
+          ws.role = data.role;
+          console.log(`Client identified: ${ws.role} (${ws.userId})`);
+        }
+      } catch (error) {
+        console.error("Error processing message:", error);
+      }
+    });
+
+    ws.on("error", (error) => {
+      console.error("WebSocket error:", error);
+    });
+
+    ws.on("close", () => {
+      console.log("Client disconnected");
+      ws.isAlive = false;
+    });
   });
 
-  // Handle client disconnection
-  ws.on("close", () => {
-    console.log("Client disconnected");
-    // Remove client from connections
-    for (const [userId, conn] of userConnections.entries()) {
-      if (conn.socket === ws) {
-        userConnections.delete(userId);
-        break;
-      }
-    }
+  wss.on("close", () => {
+    clearInterval(interval);
   });
 
-  // Start simulations if first client
-  if (wss.clients.size === 1) {
-    startPriceSimulation();
-    startOrderSimulation();
-  }
+  return wss;
 };
 
 // Expire orders based on expiration
 setInterval(async () => {
   const now = new Date();
-  const orders = await Order.find({ status: "New Order" });
+  const orders = await Order.find({
+    status: "New Order",
+    expired: false,
+    expiration: { $gt: now },
+  });
 
+  let hasChanges = false;
   for (const order of orders) {
     const expirationTime =
       typeof order.expiration === "string"
         ? new Date(order.createdAt.getTime() + parseDuration(order.expiration))
         : new Date(order.expiration);
 
-    if (expirationTime < now) {
+    if (expirationTime < now && !order.expired) {
       order.expired = true;
       await order.save();
+      hasChanges = true;
     }
   }
 
-  const activeOrders = await Order.find({ status: "New Order" });
-  const orderHistory = await Order.find({ status: { $ne: "New Order" } });
-
-  broadcastOrderUpdate({
-    type: "ORDER_UPDATE",
-    orders: activeOrders,
-    orderHistory,
-  });
+  // Only update if changes were made
+  if (hasChanges) {
+    updateOrderBooks();
+  }
 }, 5000);
 
 // Helper function: Parse duration
@@ -150,6 +175,11 @@ const broadcastTrade = (
 };
 
 const broadcastOrderUpdate = (data: BroadcastData) => {
+  // Add a check to prevent unnecessary broadcasts
+  if (!data.orders?.length && !data.orderHistory?.length) {
+    return;
+  }
+
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify(data));
@@ -159,27 +189,24 @@ const broadcastOrderUpdate = (data: BroadcastData) => {
 
 // Export the WebSocket server and connection handler
 export {
-  wss,
-  handleConnection,
   broadcastTrade,
   broadcastOrderUpdate,
   notifyClient,
   notifyManagers,
   generateSimulatedOrder,
+  startPriceSimulation,
+  startOrderSimulation,
 };
 
 let currentPrice = 20000; // Initial BTC price
 const PRICE_VOLATILITY = 0.002; // 0.2% price movement
 
-const startPriceSimulation = () => {
+const startPriceSimulation = (wss: WebSocketServer) => {
   setInterval(() => {
-    // Simulate price movement
     const priceChange =
       currentPrice * PRICE_VOLATILITY * (Math.random() * 2 - 1);
     currentPrice += priceChange;
-
-    // Simulate volume
-    const volume = Math.random() * 2; // 0-2 BTC volume
+    const volume = Math.random() * 2;
 
     const update = {
       type: "PRICE_UPDATE",
@@ -188,13 +215,12 @@ const startPriceSimulation = () => {
       timestamp: new Date(),
     };
 
-    // Broadcast to all connected clients
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) {
         client.send(JSON.stringify(update));
       }
     });
-  }, 1000); // Update every second
+  }, 1000);
 };
 
 // Update simulation constants for more realistic values
@@ -213,11 +239,10 @@ const startOrderSimulation = () => {
     const newOrder = generateSimulatedOrder();
     const expiration = generateRandomExpiration();
 
-    // Create and save order to database with required fields
     const order = new Order({
       ...newOrder,
       status: "New Order",
-      userId: new mongoose.Types.ObjectId(), // Add dummy userId for simulation
+      userId: new mongoose.Types.ObjectId(),
       expiration:
         typeof expiration === "string"
           ? new Date(Date.now() + parseDuration(expiration))
@@ -286,13 +311,14 @@ const updateOrderBooks = async () => {
         .limit(50),
     ]);
 
-    const update: BroadcastData = {
-      type: "ORDER_UPDATE" as const,
-      orders: activeOrders,
-      orderHistory,
-    };
-
-    broadcastOrderUpdate(update);
+    // Only broadcast if there are orders to broadcast
+    if (activeOrders.length || orderHistory.length) {
+      broadcastOrderUpdate({
+        type: "ORDER_UPDATE",
+        orders: activeOrders,
+        orderHistory,
+      });
+    }
   } catch (error) {
     console.error("Error updating order books:", error);
   }

@@ -11,6 +11,8 @@ export const fetchBinanceSymbols = async (): Promise<string[]> => {
     const response = await fetch(`${BINANCE_API}/exchangeInfo`);
     const data = await response.json();
 
+    console.log(data, "data");
+
     // Filter for USDT pairs only
     const usdtPairs = data.symbols
       .filter(
