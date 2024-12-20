@@ -57,6 +57,18 @@ export default {
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
       },
+      backgroundImage: {
+        "auth-bg": "url('/assets/bg-2.jpg')",
+      },
+      animation: {
+        underline: "underline 10s infinite",
+      },
+      keyframes: {
+        underline: {
+          "0%": { width: "0%" },
+          "100%": { width: "100%" },
+        },
+      },
     },
   },
   plugins: [tailwindcssAnimate],
