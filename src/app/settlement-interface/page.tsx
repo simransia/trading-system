@@ -60,7 +60,7 @@ const SettlementInterface = () => {
               variant="outline"
               className="text-blue-400 border-blue-400"
             >
-              Manager View
+              Logout Manager View
             </Badge>
           </div>
         </header>
