@@ -36,6 +36,7 @@ export const useWebSocketConnection = () => {
     const acceptedOrders = orders.filter(
       (order) => order.status === "ACCEPTED"
     );
+
     const buyOrders = acceptedOrders.filter((order) => order.type === "BUY");
     const sellOrders = acceptedOrders.filter((order) => order.type === "SELL");
 
@@ -44,50 +45,62 @@ export const useWebSocketConnection = () => {
         sellOrders
           .filter(
             (sellOrder) =>
-              buyOrder.price >= sellOrder.price &&
+              sellOrder.price <= buyOrder.price &&
               buyOrder.asset === sellOrder.asset
           )
           .map((sellOrder) => ({
             buyOrder,
             sellOrder,
             potentialProfit:
-              (buyOrder.price - sellOrder.price) *
+              (sellOrder.price - buyOrder.price) *
               Math.min(buyOrder.quantity, sellOrder.quantity),
           }))
       )
       .sort((a, b) => b.potentialProfit - a.potentialProfit);
   };
 
-  // Update the filtering logic
-  const filterOrders = (orders: Order[]) => {
-    const active = orders.filter(
-      (order) => order.status === "New Order" && !order.expired
-    );
-
-    const matching = orders.filter(
-      (order) =>
-        (order.status === "ACCEPTED" || order.status === "REJECTED") &&
-        !order.expired
-    );
-
-    const history = orders.filter(
-      (order) => order.status === "FILLED" || order.expired
-    );
-
-    setActiveOrders(active);
-    setMatchOpportunities(generateMatchOpportunities(matching));
-    setOrderHistory(history);
-  };
-
   useEffect(() => {
     if (lastMessage) {
       const data = JSON.parse(lastMessage.data);
       if (data.type === "ORDER_UPDATE") {
-        setActiveOrders(data.orders || []);
-        setOrderHistory(data.orderHistory || []);
+        const allOrders = data.orders || [];
+
+        // Active orders: only NEW orders that aren't expired
+        const active = allOrders.filter(
+          (order: Order) => order.status === "New Order" && !order.expired
+        );
+
+        // Match opportunities: only ACCEPTED orders that aren't expired
+        const acceptedOrders = allOrders.filter(
+          (order: Order) => order.status === "ACCEPTED" && !order.expired
+        );
+
+        // History: only FILLED or expired orders (not ACCEPTED or REJECTED)
+        const history = allOrders.filter(
+          (order: Order) => order.status === "FILLED" || order.expired
+        );
+
+        // Debug logs
+        console.log({
+          allOrders: allOrders.length,
+          active: active.length,
+          accepted: acceptedOrders.length,
+          history: history.length,
+          acceptedStatuses: allOrders.map((o: Order) => o.status),
+        });
+
+        // Update states
+        setActiveOrders(active);
+        setOrderHistory(history);
+
+        // Generate match opportunities from accepted orders
+        if (acceptedOrders.length > 0) {
+          const opportunities = generateMatchOpportunities(acceptedOrders);
+          setMatchOpportunities(opportunities);
+        }
       }
     }
-  }, [lastMessage, setActiveOrders, setOrderHistory]);
+  }, [lastMessage]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -119,7 +132,6 @@ export const useWebSocketConnection = () => {
     activeOrders,
     orderHistory,
     matchOpportunities,
-    filterOrders,
     setMatchOpportunities,
   };
 };

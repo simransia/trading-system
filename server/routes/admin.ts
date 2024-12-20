@@ -26,7 +26,8 @@ const router = Router();
 router.post("/api/accept-order", async (req: Request, res: Response) => {
   try {
     const { orderId } = req.body;
-    console.log("Accepting order:", orderId);
+    console.log("Accepting order with ID:", orderId);
+
     const order = await Order.findByIdAndUpdate(
       orderId,
       { status: "ACCEPTED" },
@@ -34,22 +35,25 @@ router.post("/api/accept-order", async (req: Request, res: Response) => {
     );
 
     if (!order) {
+      console.log("Order not found:", orderId);
       res.status(404).json({ error: "Order not found" });
       return;
     }
 
-    // Get updated orders and broadcast
-    const [activeOrders, orderHistory] = await Promise.all([
-      Order.find({ status: "New Order" }),
-      Order.find({ status: { $ne: "New Order" } })
-        .sort({ updatedAt: -1 })
-        .limit(50),
-    ]);
+    console.log("Order updated:", order);
 
+    // Get all orders
+    const allOrders = await Order.find({});
+    console.log("Total orders:", allOrders.length);
+    console.log(
+      "Accepted orders:",
+      allOrders.filter((o) => o.status === "ACCEPTED").length
+    );
+
+    // Broadcast update
     broadcastOrderUpdate({
       type: "ORDER_UPDATE",
-      orders: activeOrders,
-      orderHistory,
+      orders: allOrders,
     });
 
     res.json({ message: "Order accepted", order });
