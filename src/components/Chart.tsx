@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { API_BASE_URL } from "@/config";
 import {
   ComposedChart,
   Area,
@@ -20,51 +21,109 @@ interface PricePoint {
 
 const Chart = () => {
   const [priceHistory, setPriceHistory] = useState<PricePoint[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<
+    "connecting" | "connected" | "disconnected"
+  >("connecting");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout;
+    let reconnectAttempts = 0;
+    const MAX_RECONNECT_ATTEMPTS = 5;
 
     const connect = () => {
       try {
-        ws = new WebSocket("ws://localhost:8080");
+        if (ws?.readyState === WebSocket.OPEN) {
+          return;
+        }
+
+        // Clear previous error
+        setError(null);
+
+        // If we've tried too many times, use simulated data
+        if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+          startSimulatedData();
+          return;
+        }
+
+        ws = new WebSocket(API_BASE_URL.replace("http", "ws"));
+        setConnectionStatus("connecting");
+
+        ws.onopen = () => {
+          setConnectionStatus("connected");
+          reconnectAttempts = 0;
+        };
 
         ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === "PRICE_UPDATE") {
-            setPriceHistory((prev) => {
-              const newHistory = [
-                ...prev,
-                {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.type === "PRICE_UPDATE") {
+              setPriceHistory((prev) => {
+                const newPrice = {
                   time: new Date().toLocaleTimeString(),
-                  price: data.price,
+                  price: data.price || 20000,
                   volume: data.volume || 0,
-                },
-              ];
-              return newHistory.slice(-30);
-            });
+                };
+                return [...prev.slice(-29), newPrice];
+              });
+            }
+          } catch {
+            // Silently handle parse errors
+            console.warn("Failed to process message");
           }
         };
 
-        ws.onerror = (error) => {
-          console.error("WebSocket error:", error);
+        ws.onerror = () => {
+          setConnectionStatus("disconnected");
+          setError("Connection lost. Using simulated data.");
+          startSimulatedData();
         };
 
         ws.onclose = () => {
-          console.log("WebSocket disconnected");
-          setTimeout(connect, 3000);
+          setConnectionStatus("disconnected");
+          reconnectAttempts++;
+
+          if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            reconnectTimeout = setTimeout(connect, 3000);
+          } else {
+            setError("Unable to connect. Using simulated data.");
+            startSimulatedData();
+          }
         };
-      } catch (error) {
-        console.error("WebSocket connection failed:", error);
-        setTimeout(connect, 3000);
+      } catch {
+        setConnectionStatus("disconnected");
+        setError("Connection failed. Using simulated data.");
+        startSimulatedData();
       }
+    };
+
+    // Simulate data when WebSocket fails
+    const startSimulatedData = () => {
+      const interval = setInterval(() => {
+        const lastPriceValue =
+          priceHistory[priceHistory.length - 1]?.price || 20000;
+        const newPrice = lastPriceValue + (Math.random() - 0.5) * 100;
+        const newVolume = Math.random() * 2;
+
+        setPriceHistory((prev) => [
+          ...prev.slice(-29),
+          {
+            time: new Date().toLocaleTimeString(),
+            price: newPrice,
+            volume: newVolume,
+          },
+        ]);
+      }, 1000);
+
+      return () => clearInterval(interval);
     };
 
     connect();
 
     return () => {
-      if (ws) {
-        ws.close();
-      }
+      clearTimeout(reconnectTimeout);
+      if (ws) ws.close();
     };
   }, []);
 
@@ -75,9 +134,23 @@ const Chart = () => {
     <div className="bg-[#0B0E11] p-4 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-gray-200">BTC-USDT</h3>
-        <div className="text-gray-400 text-sm">
-          <span className="mr-4">24h Change: +2.34%</span>
-          <span>24h Volume: 12,345 BTC</span>
+        <div className="flex items-center gap-4">
+          <div className="text-gray-400 text-sm">
+            <span className="mr-4">24h Change: +2.34%</span>
+            <span>24h Volume: 12,345 BTC</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div
+              className={`h-2 w-2 rounded-full ${
+                connectionStatus === "connected"
+                  ? "bg-green-500"
+                  : connectionStatus === "connecting"
+                  ? "bg-yellow-500"
+                  : "bg-red-500"
+              }`}
+            />
+            {error && <span className="text-xs text-gray-400">{error}</span>}
+          </div>
         </div>
       </div>
       <div className="h-[600px]">
